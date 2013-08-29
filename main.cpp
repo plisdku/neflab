@@ -6,6 +6,8 @@
 #include <CGAL/Nef_polyhedron_3.h>
 #include <CGAL/Polyhedron_3.h>
 #include <CGAL/Polyhedron_incremental_builder_3.h>
+#include <CGAL/IO/Nef_polyhedron_iostream_3.h>
+#include <CGAL/OFF_to_nef_3.h>
 
 typedef CGAL::Exact_predicates_exact_constructions_kernel Kernel;
 typedef CGAL::Nef_polyhedron_3<Kernel> NefPolyhedron;
@@ -78,6 +80,7 @@ void doDifference();
 bool testIntersection();
 void printError();
 
+NefPolyhedron readMultiOFF();
 Polyhedron readPolyhedron();
 void writeNefPolyhedron(const NefPolyhedron & poly);
 
@@ -127,27 +130,42 @@ void doIntersection()
 {
     cerr << "intersection\n";
     
-    Polyhedron p1, p2;
-    cerr << "Reading first polyhedron.\n";
-    p1 = readPolyhedron();
-    cerr << "Reading second polyhedron.\n";
-    p2 = readPolyhedron();
-    NefPolyhedron n1(p1);
-    NefPolyhedron n2(p2);
+//    Polyhedron p1, p2;
+//    cerr << "Reading first polyhedron.\n";
+//    p1 = readPolyhedron();
+//    cerr << "Reading second polyhedron.\n";
+//    p2 = readPolyhedron();
+//    NefPolyhedron n1(p1);
+//    NefPolyhedron n2(p2);
+
+    NefPolyhedron n1, n2;
+    n1 = readMultiOFF();
+    n2 = readMultiOFF();
+    
+    cerr << "Poly1:\n" << n1 << "\n";
+    cerr << "Poly2:\n" << n2 << "\n";
     
     NefPolyhedron nefIntersection = (n1*n2).regularization();
     writeNefPolyhedron(nefIntersection);
+    
+    cerr << nefIntersection;
 }
 
 void doUnion()
 {
     cerr << "union\n";
     
-    Polyhedron p1, p2;
-    p1 = readPolyhedron();
-    p2 = readPolyhedron();
-    NefPolyhedron n1(p1);
-    NefPolyhedron n2(p2);
+//    Polyhedron p1, p2;
+//    cerr << "Reading first polyhedron.\n";
+//    p1 = readPolyhedron();
+//    cerr << "Reading second polyhedron.\n";
+//    p2 = readPolyhedron();
+//    NefPolyhedron n1(p1);
+//    NefPolyhedron n2(p2);
+
+    NefPolyhedron n1, n2;
+    n1 = readMultiOFF();
+    n2 = readMultiOFF();
     
     NefPolyhedron nefUnion = (n1+n2).regularization();
     writeNefPolyhedron(nefUnion);
@@ -157,11 +175,17 @@ void doDifference()
 {
     cerr << "difference\n";
     
-    Polyhedron p1, p2;
-    p1 = readPolyhedron();
-    p2 = readPolyhedron();
-    NefPolyhedron n1(p1);
-    NefPolyhedron n2(p2);
+//    Polyhedron p1, p2;
+//    cerr << "Reading first polyhedron.\n";
+//    p1 = readPolyhedron();
+//    cerr << "Reading second polyhedron.\n";
+//    p2 = readPolyhedron();
+//    NefPolyhedron n1(p1);
+//    NefPolyhedron n2(p2);
+
+    NefPolyhedron n1, n2;
+    n1 = readMultiOFF();
+    n2 = readMultiOFF();
     
     NefPolyhedron nefDifference = (n1 - n2).regularization();
     writeNefPolyhedron(nefDifference);
@@ -171,11 +195,18 @@ bool testIntersection()
 {
     cerr << "testIntersection\n";
     
-    Polyhedron p1, p2;
-    p1 = readPolyhedron();
-    p2 = readPolyhedron();
-    NefPolyhedron n1(p1);
-    NefPolyhedron n2(p2);
+//    Polyhedron p1, p2;
+//    cerr << "Reading first polyhedron.\n";
+//    p1 = readPolyhedron();
+//    cerr << "Reading second polyhedron.\n";
+//    p2 = readPolyhedron();
+//    NefPolyhedron n1(p1);
+//    NefPolyhedron n2(p2);
+
+    NefPolyhedron n1, n2;
+    n1 = readMultiOFF();
+    n2 = readMultiOFF();
+    
     cerr << "Doing nothing!\n";
     return 0;
 }
@@ -184,6 +215,46 @@ void printError()
 {
     cout << "I don't understand what you want.\n";
     printHelp();
+}
+
+NefPolyhedron readMultiOFF()
+{
+    int numPositiveShells, numNegativeShells;
+    int numIgnoredFacets;
+    
+    cin >> numPositiveShells >> numNegativeShells;
+    
+    NefPolyhedron nef;
+    
+    for (int nn = 0; nn < numPositiveShells; nn++)
+    {
+        NefPolyhedron addend;
+        
+        numIgnoredFacets = CGAL::OFF_to_nef_3(cin, addend);
+        if (numIgnoredFacets > 0)
+            cerr << "Ignored " << numIgnoredFacets << " facets!\n";
+        nef = nef + addend;
+    }
+    
+    for (int nn = 0; nn < numNegativeShells; nn++)
+    {
+        NefPolyhedron subtrahend;
+        
+        numIgnoredFacets = CGAL::OFF_to_nef_3(cin, subtrahend);
+        if (numIgnoredFacets > 0)
+            cerr << "Ignored " << numIgnoredFacets << " facets!\n";
+        nef = nef - subtrahend;
+    }
+    
+//    NefPolyhedron nef;
+//    int numIgnoredFacets;
+//    
+//    numIgnoredFacets = CGAL::OFF_to_nef_3(cin, nef);
+//    
+//    if (numIgnoredFacets > 0)
+//        cerr << "Ignoring " << numIgnoredFacets << " facets!!\n";
+    
+    return nef;
 }
 
 Polyhedron readPolyhedron()
