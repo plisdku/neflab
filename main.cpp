@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -74,14 +75,14 @@ private:
 using namespace std;
 
 void printHelp();
-void doIntersection();
-void doUnion();
-void doDifference();
-bool testIntersection();
+void doIntersection(const NefPolyhedron & p1, const NefPolyhedron & p2);
+void doUnion(const NefPolyhedron & p1, const NefPolyhedron & p2);
+void doDifference(const NefPolyhedron & p1, const NefPolyhedron & p2);
+bool testIntersection(const NefPolyhedron & p1, const NefPolyhedron & p2);
 void printError();
 
-NefPolyhedron readMultiOFF();
-Polyhedron readPolyhedron();
+NefPolyhedron readMultiOFF(istream & instr);
+//Polyhedron readPolyhedron(istream & instr);
 void writeNefPolyhedron(const NefPolyhedron & poly);
 
 int main(int argc, char const** argv)
@@ -92,26 +93,51 @@ int main(int argc, char const** argv)
     }
     
     if (argc == 1)
-        printHelp();
-    else
     {
-        string token(argv[1]);
-        
-        if (token == "intersection")
-            doIntersection();
-        else if (token == "union")
-            doUnion();
-        else if (token == "difference")
-            doDifference();
-        else if (token == "testIntersection")
-            return testIntersection();
-        else
-        {
-            printError();
-            return 1;
-        }
+        printHelp();
+        return 0;
     }
     
+    NefPolyhedron p1, p2;
+    
+    if (argc == 3)
+    {
+        string fname(argv[2]);
+        cerr << "Opening " << fname << "\n";
+        
+        ifstream in(fname.c_str());
+        
+        if (!in)
+        {
+            cerr << "Cannot open file.\n";
+            return 1;
+        }
+
+        
+        p1 = readMultiOFF(in);
+        p2 = readMultiOFF(in);
+    }
+    else
+    {
+        p1 = readMultiOFF(cin);
+        p2 = readMultiOFF(cin);
+    }
+    
+    string token(argv[1]);
+    
+    if (token == "intersection")
+        doIntersection(p1, p2);
+    else if (token == "union")
+        doUnion(p1, p2);
+    else if (token == "difference")
+        doDifference(p1, p2);
+    else if (token == "testIntersection")
+        return testIntersection(p1, p2);
+    else
+    {
+        printError();
+        return 1;
+    }
     
     return 0;
 }
@@ -126,7 +152,7 @@ void printHelp()
     cout << "\tNefLab testIntersection\n";
 }
 
-void doIntersection()
+void doIntersection(const NefPolyhedron & p1, const NefPolyhedron & p2)
 {
     cerr << "intersection\n";
     
@@ -138,20 +164,18 @@ void doIntersection()
 //    NefPolyhedron n1(p1);
 //    NefPolyhedron n2(p2);
 
-    NefPolyhedron n1, n2;
-    n1 = readMultiOFF();
-    n2 = readMultiOFF();
+//    NefPolyhedron n1, n2;
+//    n1 = readMultiOFF();
+//    n2 = readMultiOFF();
+//    
+//    cerr << "Poly1:\n" << n1 << "\n";
+//    cerr << "Poly2:\n" << n2 << "\n";
     
-    cerr << "Poly1:\n" << n1 << "\n";
-    cerr << "Poly2:\n" << n2 << "\n";
-    
-    NefPolyhedron nefIntersection = (n1*n2).regularization();
+    NefPolyhedron nefIntersection = (p1*p2).regularization();
     writeNefPolyhedron(nefIntersection);
-    
-    cerr << nefIntersection;
 }
 
-void doUnion()
+void doUnion(const NefPolyhedron & p1, const NefPolyhedron & p2)
 {
     cerr << "union\n";
     
@@ -163,15 +187,15 @@ void doUnion()
 //    NefPolyhedron n1(p1);
 //    NefPolyhedron n2(p2);
 
-    NefPolyhedron n1, n2;
-    n1 = readMultiOFF();
-    n2 = readMultiOFF();
+//    NefPolyhedron n1, n2;
+//    n1 = readMultiOFF();
+//    n2 = readMultiOFF();
     
-    NefPolyhedron nefUnion = (n1+n2).regularization();
+    NefPolyhedron nefUnion = (p1+p2).regularization();
     writeNefPolyhedron(nefUnion);
 }
 
-void doDifference()
+void doDifference(const NefPolyhedron & p1, const NefPolyhedron & p2)
 {
     cerr << "difference\n";
     
@@ -183,15 +207,15 @@ void doDifference()
 //    NefPolyhedron n1(p1);
 //    NefPolyhedron n2(p2);
 
-    NefPolyhedron n1, n2;
-    n1 = readMultiOFF();
-    n2 = readMultiOFF();
+//    NefPolyhedron n1, n2;
+//    n1 = readMultiOFF();
+//    n2 = readMultiOFF();
     
-    NefPolyhedron nefDifference = (n1 - n2).regularization();
+    NefPolyhedron nefDifference = (p1 - p2).regularization();
     writeNefPolyhedron(nefDifference);
 }
 
-bool testIntersection()
+bool testIntersection(const NefPolyhedron & p1, const NefPolyhedron & p2)
 {
     cerr << "testIntersection\n";
     
@@ -203,9 +227,9 @@ bool testIntersection()
 //    NefPolyhedron n1(p1);
 //    NefPolyhedron n2(p2);
 
-    NefPolyhedron n1, n2;
-    n1 = readMultiOFF();
-    n2 = readMultiOFF();
+//    NefPolyhedron n1, n2;
+//    n1 = readMultiOFF();
+//    n2 = readMultiOFF();
     
     cerr << "Doing nothing!\n";
     return 0;
@@ -217,12 +241,24 @@ void printError()
     printHelp();
 }
 
-NefPolyhedron readMultiOFF()
+NefPolyhedron readMultiOFF(istream & instr)
 {
     int numPositiveShells, numNegativeShells;
     int numIgnoredFacets;
     
-    cin >> numPositiveShells >> numNegativeShells;
+//    cerr << "Bad() = " << instr.bad() << "\n";
+//    cerr << "Fail() = " << instr.fail() << "\n";
+//    cerr << "EOF() = " << instr.eof() << "\n";
+//    cerr << "Good() = " << instr.good() << "\n";
+    
+    instr >> numPositiveShells;
+    
+//    cerr << "Bad() = " << instr.bad() << "\n";
+//    cerr << "Fail() = " << instr.fail() << "\n";
+//    cerr << "EOF() = " << instr.eof() << "\n";
+//    cerr << "Good() = " << instr.good() << "\n";
+    
+    instr >> numNegativeShells;
     
     NefPolyhedron nef;
     
@@ -230,7 +266,7 @@ NefPolyhedron readMultiOFF()
     {
         NefPolyhedron addend;
         
-        numIgnoredFacets = CGAL::OFF_to_nef_3(cin, addend);
+        numIgnoredFacets = CGAL::OFF_to_nef_3(instr, addend);
         if (numIgnoredFacets > 0)
             cerr << "Ignored " << numIgnoredFacets << " facets!\n";
         nef = nef + addend;
@@ -240,7 +276,7 @@ NefPolyhedron readMultiOFF()
     {
         NefPolyhedron subtrahend;
         
-        numIgnoredFacets = CGAL::OFF_to_nef_3(cin, subtrahend);
+        numIgnoredFacets = CGAL::OFF_to_nef_3(instr, subtrahend);
         if (numIgnoredFacets > 0)
             cerr << "Ignored " << numIgnoredFacets << " facets!\n";
         nef = nef - subtrahend;
@@ -257,40 +293,40 @@ NefPolyhedron readMultiOFF()
     return nef;
 }
 
-Polyhedron readPolyhedron()
-{
-    int numVertices, numFaces;
-    cin >> numVertices >> numFaces;
-    cerr << "Reading " << numVertices << " vertices and " << numFaces << " faces.\n";
-    
-    vector<Point_3> vertices(numVertices);
-    vector<vector<unsigned int> > faces(numFaces);
-    
-    for (int vv = 0; vv < numVertices; vv++)
-    {
-        double x, y, z;
-        cin >> x >> y >> z;
-        vertices[vv] = Point_3(x, y, z);
-    }
-    
-    for (int ff = 0; ff < numFaces; ff++)
-    {
-        unsigned int v1, v2, v3;
-        cin >> v1 >> v2 >> v3;
-        vector<unsigned int> tri(3);
-        tri[0] = v1;
-        tri[1] = v2;
-        tri[2] = v3;
-        
-        faces[ff] = tri;
-    }
-    
-    Polyhedron poly;
-    BuildMesh<Polyhedron::HalfedgeDS> builder(vertices, faces);
-    poly.delegate(builder);
-    
-    return poly;
-}
+//Polyhedron readPolyhedron(istream & instr)
+//{
+//    int numVertices, numFaces;
+//    instr >> numVertices >> numFaces;
+//    cerr << "Reading " << numVertices << " vertices and " << numFaces << " faces.\n";
+//    
+//    vector<Point_3> vertices(numVertices);
+//    vector<vector<unsigned int> > faces(numFaces);
+//    
+//    for (int vv = 0; vv < numVertices; vv++)
+//    {
+//        double x, y, z;
+//        instr >> x >> y >> z;
+//        vertices[vv] = Point_3(x, y, z);
+//    }
+//    
+//    for (int ff = 0; ff < numFaces; ff++)
+//    {
+//        unsigned int v1, v2, v3;
+//        instr >> v1 >> v2 >> v3;
+//        vector<unsigned int> tri(3);
+//        tri[0] = v1;
+//        tri[1] = v2;
+//        tri[2] = v3;
+//        
+//        faces[ff] = tri;
+//    }
+//    
+//    Polyhedron poly;
+//    BuildMesh<Polyhedron::HalfedgeDS> builder(vertices, faces);
+//    poly.delegate(builder);
+//    
+//    return poly;
+//}
 
 void writeNefPolyhedron(const NefPolyhedron & poly)
 {
@@ -307,10 +343,14 @@ void writeNefPolyhedron(const NefPolyhedron & poly)
     
     for (int loopVertex = 0; loopVertex < insideVolumes.size(); loopVertex++)
     {
+//        cerr << "Volume " << loopVertex << "\n";
+        
+        int shell = 0;
         ShellEntryConstIterator itr;
         for (itr = insideVolumes[loopVertex]->shells_begin();
             itr != insideVolumes[loopVertex]->shells_end(); itr++)
         {
+//            cout << "\tShell " << shell++ << "\n";
             poly.visit_shell_objects(SFaceConstHandle(itr),
                 shellVisitor);
         }
@@ -356,8 +396,4 @@ void writeNefPolyhedron(const NefPolyhedron & poly)
             cout << "\n";
         }
     }
-    
-    
-    
-    cerr << "I have now written a NefPolyhedron.\n";
 }

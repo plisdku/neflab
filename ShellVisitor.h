@@ -121,7 +121,10 @@ public:
         mContourVertices.push_back(vertices);
         
         for (int vv = 0; vv < vertices.size(); vv++)
+        {
+//            std::cerr << "\t\tvert " << vertices[vv] << "\n";
             mVertexSet.insert(vertices[vv]);
+        }
         
         /*
         int numTriangles = mTriangulator.triangulate(contourSizes, vertices,
