@@ -2,6 +2,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <iomanip>
 
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <CGAL/Nef_polyhedron_3.h>
@@ -87,6 +88,7 @@ void writeNefPolyhedron(const NefPolyhedron & poly);
 
 int main(int argc, char const** argv)
 {
+    cout << setprecision(15);
     for (int nn = 0; nn < argc; nn++)
     {
         cerr << "Arg " << nn << " = " << argv[nn] << "\n";
@@ -367,6 +369,7 @@ void writeNefPolyhedron(const NefPolyhedron & poly)
     
     cout << "numVertices " << vertexSet.size() << "\n";
     
+    cout << setprecision(15);
     set<Vector3d>::const_iterator itr;
     for (itr = vertexSet.begin(); itr != vertexSet.end(); itr++)
     {
