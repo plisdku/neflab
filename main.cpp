@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <iomanip>
+#include <set>
 
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <CGAL/Nef_polyhedron_3.h>
@@ -14,77 +15,65 @@
 typedef CGAL::Exact_predicates_exact_constructions_kernel Kernel;
 typedef CGAL::Nef_polyhedron_3<Kernel> NefPolyhedron;
 typedef NefPolyhedron::Point_3 Point_3;
+typedef NefPolyhedron::Vector_3 Vector_3;
 typedef NefPolyhedron::Traits Traits;
 typedef CGAL::Polyhedron_3<Traits> Polyhedron;
 
+#include "BuildMesh-inl.h"
 #include "ShellVisitor.h"
 #include "InteriorVolumes-inl.h"
-
-template<class HalfedgeDS>
-class BuildMesh: public CGAL::Modifier_base<HalfedgeDS>
-{
-    typedef typename HalfedgeDS::Vertex Vertex;
-    typedef typename Vertex::Point Point;
-public:
-    BuildMesh(const std::vector<Point> & vertices,
-        const std::vector<std::vector<unsigned int> > & faces) :
-        mVertices(vertices),
-        mFaces(faces)
-    {
-//        std::cerr << "The faces?\n";
-//        for (int ff = 0; ff < faces.size(); ff++)
-        {
-//            std::cout << "face " << ff << ": ";
-//            for (int nn = 0; nn < faces.at(ff).size(); nn++)
-//                std::cout << faces.at(ff).at(nn) << " ";
-//            std::cout << "\n";
-        }
-    }
-    
-    void operator() (HalfedgeDS & halfedges)
-    {
-        bool verbose = false;
-        CGAL::Polyhedron_incremental_builder_3<HalfedgeDS> builder(halfedges,
-            verbose);
-        
-        builder.begin_surface(mVertices.size(), mFaces.size());
-        for (int vv = 0; vv < mVertices.size(); vv++)
-        {
-            builder.add_vertex(mVertices.at(vv));
-//            std::cout << "Vertex " << vv << ": " << mVertices.at(vv) << "\n";
-        }
-        for (int ff = 0; ff < mFaces.size(); ff++)
-        {
-//            std::cout << "Face " << ff << ": ";
-            builder.begin_facet();
-            for (int vv = 0; vv < mFaces.at(ff).size(); vv++)
-            {
-                builder.add_vertex_to_facet(mFaces.at(ff).at(vv));
-//                std::cout << mFaces.at(ff).at(vv) << " ";
-            }
-//            std::cout << "\n";
-            builder.end_facet();
-        }
-        builder.end_surface();
-    }
-private:
-    const std::vector<Point> & mVertices;
-    const std::vector<std::vector<unsigned int> > & mFaces;
-};
-
+#include "Boolean-inl.h"
+#include "PaternityTest-inl.h"
 
 using namespace std;
 
 void printHelp();
-void doIntersection(const NefPolyhedron & p1, const NefPolyhedron & p2);
-void doUnion(const NefPolyhedron & p1, const NefPolyhedron & p2);
-void doDifference(const NefPolyhedron & p1, const NefPolyhedron & p2);
-bool testIntersection(const NefPolyhedron & p1, const NefPolyhedron & p2);
 void printError();
 
+/**
+ * Read a single polyhedral shell from OFF format into a face-vertex structure.
+ */
+void readPolyhedron(istream & instr,
+    vector<Point_3> & outVertices,
+    vector<vector<unsigned int> > & outFaces);
+
+/**
+ * Determine which facets of polyhedron 2 overlap facets of polyhedron 1.
+ *
+ * For each facet of polyhedron 2, return a list of facet numbers in polyhedron
+ * 1 which are coplanar and overlap with it.
+ */
+vector<vector<unsigned int> > findIntersectingFacets(
+    const vector<Point_3> & vertices1,
+    const vector<vector<unsigned int> > & faces1,
+    const vector<Point_3> & vertices2,
+    const vector<vector<unsigned int> > & faces2);
+
+/**
+ * Main function for intersection, union and difference.
+ */
+int handleBooleans(int argc, char const** argv);
+
+/**
+ * Main function for facet inheritance (the only operation offered here that
+ * doesn't use Nef polyhedra).
+ */
+int handleFacetInheritance(int argc, char const** argv);
+
+/**
+ * Load a Nef polyhedron from a single file specifying all its shells as
+ * separate OFF files.  A brief header gives the number of shells, and the
+ * remainder of the file contains concatenated OFF files.
+ */
 NefPolyhedron readMultiOFF(istream & instr);
-//Polyhedron readPolyhedron(istream & instr);
+
+/**
+ * Write a Nef polyhedron in a face-vertex format.
+ */
 void writeNefPolyhedron(const NefPolyhedron & poly);
+
+
+
 
 int main(int argc, char const** argv)
 {
@@ -100,8 +89,30 @@ int main(int argc, char const** argv)
         return 0;
     }
     
-    NefPolyhedron p1, p2;
+    int returnVal;
+    string algorithmName(argv[1]);
     
+    if (algorithmName == "inherit")
+    {
+        returnVal = handleFacetInheritance(argc, argv);
+    }
+    else
+    {
+        returnVal = handleBooleans(argc, argv);
+    }
+    
+    return returnVal;
+}
+
+
+
+int handleBooleans(int argc, char const **argv)
+{
+    string algorithmName(argv[1]);
+    
+    // ------ Read two polyhedra, either from a file or from standard input
+    
+    NefPolyhedron p1, p2;
     if (argc == 3)
     {
         string fname(argv[2]);
@@ -115,7 +126,6 @@ int main(int argc, char const** argv)
             return 1;
         }
 
-        
         p1 = readMultiOFF(in);
         p2 = readMultiOFF(in);
     }
@@ -125,21 +135,71 @@ int main(int argc, char const** argv)
         p2 = readMultiOFF(cin);
     }
     
-    string token(argv[1]);
+    // ------ Go do the calculation
     
-    if (token == "intersection")
-        doIntersection(p1, p2);
-    else if (token == "union")
-        doUnion(p1, p2);
-    else if (token == "difference")
-        doDifference(p1, p2);
-    else if (token == "testIntersection")
-        return testIntersection(p1, p2);
+    NefPolyhedron result;
+    if (algorithmName == "intersection")
+    {
+        result = doIntersection(p1, p2);
+    }
+    else if (algorithmName == "union")
+    {
+        result = doUnion(p1, p2);
+    }
+    else if (algorithmName == "difference")
+    {
+        result = doDifference(p1, p2);
+    }
     else
     {
         printError();
         return 1;
     }
+    
+    writeNefPolyhedron(result);
+    
+    return 0;
+}
+
+
+
+int handleFacetInheritance(int argc, char const **argv)
+{
+    // ------ Read two polyhedra, either from a file or from standard input
+    
+    // Vertices and faces of the two polyhedra
+    vector<Point_3> vertices1, vertices2;
+    vector<vector<unsigned int> > faces1, faces2;
+    
+    // Indices into polyhedron 1, for each face of polyhedron 2
+    vector<vector<unsigned int> > ancestorFaces;
+    
+    // For the facet inheritance algorithm, I just want to deal with
+    // collections of facets.  NefPolyhedron will actually make this job
+    // impossible because it automatically merges coplanar input facets.
+    if (argc == 3)
+    {
+        string fname(argv[2]);
+        cerr << "Opening " << fname << "\n";
+        
+        ifstream in(fname.c_str());
+        
+        if (!in)
+        {
+            cerr << "Cannot open file.\n";
+            return 1;
+        }
+        
+        readPolyhedron(in, vertices1, faces1);
+        readPolyhedron(in, vertices2, faces2);
+    }
+    else
+    {
+        readPolyhedron(cin, vertices1, faces1);
+        readPolyhedron(cin, vertices2, faces2);
+    }
+    
+    ancestorFaces = facetInheritance(vertices1, faces1, vertices2, faces2);
     
     return 0;
 }
@@ -151,90 +211,6 @@ void printHelp()
     cout << "\tNefLab intersection\n";
     cout << "\tNefLab union\n";
     cout << "\tNefLab difference\n";
-    cout << "\tNefLab testIntersection\n";
-}
-
-void doIntersection(const NefPolyhedron & p1, const NefPolyhedron & p2)
-{
-    cerr << "intersection\n";
-    
-//    Polyhedron p1, p2;
-//    cerr << "Reading first polyhedron.\n";
-//    p1 = readPolyhedron();
-//    cerr << "Reading second polyhedron.\n";
-//    p2 = readPolyhedron();
-//    NefPolyhedron n1(p1);
-//    NefPolyhedron n2(p2);
-
-//    NefPolyhedron n1, n2;
-//    n1 = readMultiOFF();
-//    n2 = readMultiOFF();
-//    
-//    cerr << "Poly1:\n" << n1 << "\n";
-//    cerr << "Poly2:\n" << n2 << "\n";
-    
-    NefPolyhedron nefIntersection = (p1*p2).regularization();
-    writeNefPolyhedron(nefIntersection);
-}
-
-void doUnion(const NefPolyhedron & p1, const NefPolyhedron & p2)
-{
-    cerr << "union\n";
-    
-//    Polyhedron p1, p2;
-//    cerr << "Reading first polyhedron.\n";
-//    p1 = readPolyhedron();
-//    cerr << "Reading second polyhedron.\n";
-//    p2 = readPolyhedron();
-//    NefPolyhedron n1(p1);
-//    NefPolyhedron n2(p2);
-
-//    NefPolyhedron n1, n2;
-//    n1 = readMultiOFF();
-//    n2 = readMultiOFF();
-    
-    NefPolyhedron nefUnion = (p1+p2).regularization();
-    writeNefPolyhedron(nefUnion);
-}
-
-void doDifference(const NefPolyhedron & p1, const NefPolyhedron & p2)
-{
-    cerr << "difference\n";
-    
-//    Polyhedron p1, p2;
-//    cerr << "Reading first polyhedron.\n";
-//    p1 = readPolyhedron();
-//    cerr << "Reading second polyhedron.\n";
-//    p2 = readPolyhedron();
-//    NefPolyhedron n1(p1);
-//    NefPolyhedron n2(p2);
-
-//    NefPolyhedron n1, n2;
-//    n1 = readMultiOFF();
-//    n2 = readMultiOFF();
-    
-    NefPolyhedron nefDifference = (p1 - p2).regularization();
-    writeNefPolyhedron(nefDifference);
-}
-
-bool testIntersection(const NefPolyhedron & p1, const NefPolyhedron & p2)
-{
-    cerr << "testIntersection\n";
-    
-//    Polyhedron p1, p2;
-//    cerr << "Reading first polyhedron.\n";
-//    p1 = readPolyhedron();
-//    cerr << "Reading second polyhedron.\n";
-//    p2 = readPolyhedron();
-//    NefPolyhedron n1(p1);
-//    NefPolyhedron n2(p2);
-
-//    NefPolyhedron n1, n2;
-//    n1 = readMultiOFF();
-//    n2 = readMultiOFF();
-    
-    cerr << "Doing nothing!\n";
-    return 0;
 }
 
 void printError()
@@ -295,40 +271,46 @@ NefPolyhedron readMultiOFF(istream & instr)
     return nef;
 }
 
-//Polyhedron readPolyhedron(istream & instr)
-//{
-//    int numVertices, numFaces;
-//    instr >> numVertices >> numFaces;
-//    cerr << "Reading " << numVertices << " vertices and " << numFaces << " faces.\n";
-//    
-//    vector<Point_3> vertices(numVertices);
-//    vector<vector<unsigned int> > faces(numFaces);
-//    
-//    for (int vv = 0; vv < numVertices; vv++)
-//    {
-//        double x, y, z;
-//        instr >> x >> y >> z;
-//        vertices[vv] = Point_3(x, y, z);
-//    }
-//    
-//    for (int ff = 0; ff < numFaces; ff++)
-//    {
-//        unsigned int v1, v2, v3;
-//        instr >> v1 >> v2 >> v3;
-//        vector<unsigned int> tri(3);
-//        tri[0] = v1;
-//        tri[1] = v2;
-//        tri[2] = v3;
-//        
-//        faces[ff] = tri;
-//    }
+void readPolyhedron(istream & instr,
+    vector<Point_3> & outVertices,
+    vector<vector<unsigned int> > & outFaces)
+{
+    int numVertices, numFaces;
+    instr >> numVertices >> numFaces;
+    cerr << "Reading " << numVertices << " vertices and " << numFaces << " faces.\n";
+    
+    outVertices = vector<Point_3>(numVertices);
+    outFaces = vector<vector<unsigned int> >(numFaces);
+    
+    for (int vv = 0; vv < numVertices; vv++)
+    {
+        double x, y, z;
+        instr >> x >> y >> z;
+        outVertices[vv] = Point_3(x, y, z);
+    }
+    
+    for (int ff = 0; ff < numFaces; ff++)
+    {
+        unsigned int v1, v2, v3;
+        instr >> v1 >> v2 >> v3;
+        vector<unsigned int> tri(3);
+        tri[0] = v1;
+        tri[1] = v2;
+        tri[2] = v3;
+        
+        outFaces[ff] = tri;
+    }
 //    
 //    Polyhedron poly;
-//    BuildMesh<Polyhedron::HalfedgeDS> builder(vertices, faces);
+//    BuildMesh<Polyhedron::HalfedgeDS> builder(outVertices, outFaces);
 //    poly.delegate(builder);
 //    
 //    return poly;
-//}
+}
+
+
+
+
 
 void writeNefPolyhedron(const NefPolyhedron & poly)
 {
@@ -373,6 +355,10 @@ void writeNefPolyhedron(const NefPolyhedron & poly)
     set<Vector3d>::const_iterator itr;
     for (itr = vertexSet.begin(); itr != vertexSet.end(); itr++)
     {
+        if (vertexIds.count(*itr))
+        {
+            cerr << "Warning: duplicate vertex detected!";
+        }
         vertexIds[*itr] = vertId++;
         Vector3d v = *itr;
         cout << vertId-1 << " " << v[0] << " " << v[1] << " " << v[2] << "\n";
@@ -386,17 +372,28 @@ void writeNefPolyhedron(const NefPolyhedron & poly)
         
         int vertexNum = 0;
         
+        std::set<int> vertIdSet;
+        
         // Iterate over facet loops
         for (int ll = 0; ll < facets[cc].size(); ll++)
         {
             cout << "\tnumVertices " << facets[cc][ll] << "\n";
             cout << "\t";
             
+            
             for (int loopVertex = 0; loopVertex < facets[cc][ll]; loopVertex++)
             {
-                cout << vertexIds[contourVertices[cc][vertexNum++]] << " ";
+                int vId = vertexIds[contourVertices[cc][vertexNum++]];
+                cout << vId << " ";
+                
+                if (vertIdSet.count(vId))
+                {
+                    cerr << "Warning: duplicate vertex in facet!";
+                }
+                vertIdSet.insert(vId);
             }
             cout << "\n";
         }
     }
 }
+

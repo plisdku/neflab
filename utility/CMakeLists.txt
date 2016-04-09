@@ -29,12 +29,13 @@ XMLExtras.h
 WriteSomeRLE.h
 )
 
+
 find_package( Boost COMPONENTS date_time )
 
 if (Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
     message("\nBoost includes are at ${Boost_INCLUDE_DIRS}")
-    #message("\nBoost libraries are ${Boost_LIBRARIES}")
+    message("\nBoost libraries are ${Boost_LIBRARIES}")
     target_link_libraries(utility ${Boost_LIBRARIES})
 else (Boost_FOUND)
     message(FATAL_ERROR "\nCan't find Boost!")

@@ -120,11 +120,15 @@ public:
         mContourSizes.push_back(contourSizes);
         mContourVertices.push_back(vertices);
         
+        std::set<Vector3d> facetVertexSet;
         for (int vv = 0; vv < vertices.size(); vv++)
         {
 //            std::cerr << "\t\tvert " << vertices[vv] << "\n";
             mVertexSet.insert(vertices[vv]);
+            facetVertexSet.insert(vertices[vv]);
         }
+        if (facetVertexSet.size() != vertices.size())
+            std::cerr << "Warning: got a repeated vertex!\n";
         
         /*
         int numTriangles = mTriangulator.triangulate(contourSizes, vertices,
