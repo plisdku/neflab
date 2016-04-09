@@ -38,6 +38,13 @@ void readPolyhedron(istream & instr,
     vector<vector<unsigned int> > & outFaces);
 
 /**
+ * Helper for readPolyhedron.
+ */
+void readOFF(istream & instr,
+    vector<Point_3> & outVertices,
+    vector<vector<unsigned int> > & outFaces);
+
+/**
  * Determine which facets of polyhedron 2 overlap facets of polyhedron 1.
  *
  * For each facet of polyhedron 2, return a list of facet numbers in polyhedron
@@ -199,7 +206,23 @@ int handleFacetInheritance(int argc, char const **argv)
         readPolyhedron(cin, vertices2, faces2);
     }
     
+//    std::cerr << "From " << vertices1.size() << " verts and "
+//        << faces1.size() << " faces to "
+//        << vertices2.size() << " verts and "
+//        << faces2.size() << " faces.\n";
     ancestorFaces = facetInheritance(vertices1, faces1, vertices2, faces2);
+    
+    for (int aa = 0; aa < ancestorFaces.size(); aa++)
+    {
+//        std::cerr << "New face " << aa << " paternity: [ ";
+        for (int bb = 0; bb < ancestorFaces[aa].size(); bb++)
+        {
+//            std::cerr << ancestorFaces[aa][bb] << " ";
+            std::cout << ancestorFaces[aa][bb] << " ";
+        }
+//        std::cerr << "]\n";
+        std::cout << "\n";
+    }
     
     return 0;
 }
@@ -275,8 +298,50 @@ void readPolyhedron(istream & instr,
     vector<Point_3> & outVertices,
     vector<vector<unsigned int> > & outFaces)
 {
-    int numVertices, numFaces;
-    instr >> numVertices >> numFaces;
+    int numPositiveShells, numNegativeShells;
+    instr >> numPositiveShells >> numNegativeShells;
+    
+    int numShells = numPositiveShells + numNegativeShells;
+    
+    // Empty out the vertex and face vectors to begin.
+    outVertices = vector<Point_3>();
+    outFaces = vector<vector<unsigned int> >();
+    
+    int nextVertexNumber = 0;
+    for (int ss = 0; ss < numShells; ss++)
+    {
+        std::vector<Point_3> shellVerts;
+        std::vector<std::vector<unsigned int> > shellFaces;
+        
+        readOFF(instr, shellVerts, shellFaces);
+        
+        // increment vertex index into total number of vertices so we can
+        // concatenate all the shells into one vertex list and one face list.
+        for (int ff = 0; ff < shellFaces.size(); ff++)
+        for (int ii = 0; ii < shellFaces[ff].size(); ii++)
+        {
+            shellFaces[ff][ii] += nextVertexNumber;
+        }
+        
+        nextVertexNumber += shellVerts.size();
+        
+        outVertices.insert(outVertices.end(), shellVerts.begin(), shellVerts.end());
+        outFaces.insert(outFaces.end(), shellFaces.begin(), shellFaces.end());
+//        std::copy(shellVerts.begin(), shellVerts.end(), std::back_inserter(outVertices));
+//        std::copy(shellFaces.begin(), shellFaces.end(), std::back_inserter(outFaces));
+    }
+}
+
+void readOFF(istream & instr,
+    vector<Point_3> & outVertices,
+    vector<vector<unsigned int> > & outFaces)
+{
+    std::string shouldBeOFF;
+    instr >> shouldBeOFF;
+    assert(shouldBeOFF == "OFF");
+    
+    int numVertices, numFaces, numEdges_unused;
+    instr >> numVertices >> numFaces >> numEdges_unused;
     cerr << "Reading " << numVertices << " vertices and " << numFaces << " faces.\n";
     
     outVertices = vector<Point_3>(numVertices);
@@ -291,8 +356,8 @@ void readPolyhedron(istream & instr,
     
     for (int ff = 0; ff < numFaces; ff++)
     {
-        unsigned int v1, v2, v3;
-        instr >> v1 >> v2 >> v3;
+        unsigned int numVerts, v1, v2, v3;
+        instr >> numVerts >> v1 >> v2 >> v3;
         vector<unsigned int> tri(3);
         tri[0] = v1;
         tri[1] = v2;
@@ -300,12 +365,6 @@ void readPolyhedron(istream & instr,
         
         outFaces[ff] = tri;
     }
-//    
-//    Polyhedron poly;
-//    BuildMesh<Polyhedron::HalfedgeDS> builder(outVertices, outFaces);
-//    poly.delegate(builder);
-//    
-//    return poly;
 }
 
 

@@ -55,7 +55,7 @@ struct CallbackTri3
         numInherited_(outNumInheritedFormulae)
     {}
     
-    void operator()( const Box3 & oldBox, const Box3 & newBox )
+    void operator()( const Box3 & newBox, const Box3 & oldBox )
     {
 //        cout << "Box " << (a.handle()-mFacets1.begin())
 //            << " intersects box " << (b.handle() - mFacets2.begin());
@@ -84,6 +84,8 @@ int paternityTest(const std::vector<Point_3> & vOld,
     if (fOld.size() != 3 || fNew.size() != 3)
         std::cerr << "Warning: not operating on triangles\n";
     
+//    std::cerr << vOld.size() << " verts and " << vNew.size() << " verts:\n";
+//    std::cerr << "\told tri " << fOld.size() << " new tri " << fNew.size() << "\n";
     
 //    Vector_3 nOld = CGAL::unit_normal(vOld[fOld[0]], vOld[fOld[1]], vOld[fOld[2]]);
 //    Vector_3 nNew = CGAL::unit_normal(vNew[fNew[0]], vNew[fNew[1]], vNew[fNew[2]]);
@@ -98,7 +100,7 @@ int paternityTest(const std::vector<Point_3> & vOld,
     // two facets are EXACTLY coplanar.  Gotta do all this silly stuff.
     if ( dotProd > 0.999999 || dotProd < -0.999999)
     {
-        std::cerr << "Facets appear to be parallel\n";
+//        std::cerr << "Facets appear to be parallel\n";
         
         Kernel::Plane_3 oldPlane(vOld[fOld[0]], vOld[fOld[1]], vOld[fOld[2]]);
         
@@ -107,7 +109,7 @@ int paternityTest(const std::vector<Point_3> & vOld,
         
         if (distSquared < 1e-9)
         {
-            std::cerr << "Facets appear to be coplanar\n";
+//            std::cerr << "Facets appear to be coplanar\n";
             
             // Project both faces—presumed triangles—to the old face's
             // supporting plane.
@@ -123,7 +125,7 @@ int paternityTest(const std::vector<Point_3> & vOld,
             
             if (CGAL::do_intersect(tri1, tri2))
             {
-                std::cerr << "Facets appear to intersect\n";
+//                std::cerr << "Facets appear to intersect\n";
                 numInherited++;
             }
         }
@@ -211,7 +213,6 @@ std::vector<std::vector<unsigned int> > facetInheritance(
     std::vector<Box3> ancestorBoxes(faces1.size());
     std::vector<Box3> myBoxes(faces2.size());
     
-    typedef std::vector<std::vector<unsigned int> >::const_iterator FaceItr;
     for (int nn = 0; nn < faces2.size(); nn++)
         myBoxes[nn] = Box3(faceBounds(vertices2, faces2[nn]), faces2.begin() + nn);
     
