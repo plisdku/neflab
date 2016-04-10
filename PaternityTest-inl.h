@@ -11,6 +11,7 @@
 
 #include <CGAL/box_intersection_d.h>
 #include <CGAL/intersections.h>
+//#include <CGAL/squared_distance_3.h>
 
 #include "PointFacetDistance-inl.h"
 
@@ -57,10 +58,11 @@ struct CallbackTri3
     
     void operator()( const Box3 & newBox, const Box3 & oldBox )
     {
-//        cout << "Box " << (a.handle()-mFacets1.begin())
-//            << " intersects box " << (b.handle() - mFacets2.begin());
-        int iOld = oldBox.handle() - fOld_.begin();
         int iNew = newBox.handle() - fNew_.begin();
+        int iOld = oldBox.handle() - fOld_.begin();
+        
+//        std::cerr << "(" << iNew << " <= " << iOld << ")\n";
+//        std::cerr << "\t" << newBox.bbox() << " and " << oldBox.bbox() << "\n";
         
         int doIntersect = paternityTest(
             vOld_,
@@ -70,7 +72,8 @@ struct CallbackTri3
         
         numInherited_ += doIntersect;
         
-        paternity_.at(iNew).push_back(iOld);
+        if (doIntersect)
+            paternity_.at(iNew).push_back(iOld);
     }
 };
 
@@ -93,19 +96,26 @@ int paternityTest(const std::vector<Point_3> & vOld,
     Vector_3 nNew = CGAL::normal(vNew[fNew[0]], vNew[fNew[1]], vNew[fNew[2]]);
     
     Kernel::FT dotProd = nOld * nNew;
+    Kernel::FT dotProdSquared = dotProd * dotProd;
+    Kernel::FT maxDotSquared = nOld.squared_length() * nNew.squared_length();
+    
     
     // TEST 1: are the facets coplanar?  Let's just do a numerical test.
     // CGAL is doing exact arithmetic on the inside but it began with double-
     // precision coordinates from the input file, so I can't ask it if the
     // two facets are EXACTLY coplanar.  Gotta do all this silly stuff.
-    if ( dotProd > 0.999999 || dotProd < -0.999999)
+//    if ( dotProd > 0.999999 || dotProd < -0.999999)
+    if (dotProdSquared > 0.999999*maxDotSquared)
     {
 //        std::cerr << "Facets appear to be parallel\n";
+//        std::cerr << "\tNew normal " << nNew << " and old " << nOld << " dot2 " << dotProdSquared << " max2 " << maxDotSquared << "\n";
         
         Kernel::Plane_3 oldPlane(vOld[fOld[0]], vOld[fOld[1]], vOld[fOld[2]]);
         
-        double distSquared = PointFacetDistance::distanceToPlaneSquared(
-            vNew[fNew[0]], oldPlane, Kernel());
+//        double distSquared = PointFacetDistance::distanceToPlaneSquared(
+//            vNew[fNew[0]], oldPlane, Kernel());
+        Kernel::FT distSquared = CGAL::squared_distance(vNew[fNew[0]], oldPlane);
+//        std::cerr << "\tdist " << distSquared << "\n";
         
         if (distSquared < 1e-9)
         {
@@ -126,6 +136,7 @@ int paternityTest(const std::vector<Point_3> & vOld,
             if (CGAL::do_intersect(tri1, tri2))
             {
 //                std::cerr << "Facets appear to intersect\n";
+//                std::cerr << "*hit*\n";
                 numInherited++;
             }
         }
@@ -201,6 +212,7 @@ CGAL::Bbox_3 faceBounds(const std::vector<Point_3> & vertices,
     }
     
     CGAL::Bbox_3 box = CGAL::bbox_3(facePoints.begin(), facePoints.end());
+//    std::cerr << box << "\n";
     return box;
 }
 
@@ -211,13 +223,20 @@ std::vector<std::vector<unsigned int> > facetInheritance(
     const std::vector<std::vector<unsigned int> > & faces2)
 {
     std::vector<Box3> ancestorBoxes(faces1.size());
-    std::vector<Box3> myBoxes(faces2.size());
+    std::vector<Box3> newBoxes(faces2.size());
     
-    for (int nn = 0; nn < faces2.size(); nn++)
-        myBoxes[nn] = Box3(faceBounds(vertices2, faces2[nn]), faces2.begin() + nn);
     
     for (int nn = 0; nn < faces1.size(); nn++)
+    {
         ancestorBoxes[nn] = Box3(faceBounds(vertices1, faces1[nn]), faces1.begin() + nn);
+//        std::cerr << "Old " << nn << ": " << ancestorBoxes[nn].bbox() << "\n";
+    }
+    
+    for (int nn = 0; nn < faces2.size(); nn++)
+    {
+        newBoxes[nn] = Box3(faceBounds(vertices2, faces2[nn]), faces2.begin() + nn);
+//        std::cerr << "New " << nn << ": " << newBoxes[nn].bbox() << "\n";
+    }
     
     std::vector<std::vector<unsigned int> > paternity(faces2.size());
     
@@ -225,7 +244,7 @@ std::vector<std::vector<unsigned int> > facetInheritance(
     CallbackTri3 callback(vertices1, faces1, vertices2, faces2, paternity,
         outNumInherited);
     
-    CGAL::box_intersection_d(myBoxes.begin(), myBoxes.end(),
+    CGAL::box_intersection_d(newBoxes.begin(), newBoxes.end(),
         ancestorBoxes.begin(), ancestorBoxes.end(), callback);
 //    cout << myBoxes.size() << " triangles inherited " << outNumInherited
 //        << " formulas from " << ancestorBoxes.size() << " triangles.\n";

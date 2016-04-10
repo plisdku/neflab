@@ -214,6 +214,7 @@ int handleFacetInheritance(int argc, char const **argv)
     
     for (int aa = 0; aa < ancestorFaces.size(); aa++)
     {
+        std::cout << aa << ":\t";
 //        std::cerr << "New face " << aa << " paternity: [ ";
         for (int bb = 0; bb < ancestorFaces[aa].size(); bb++)
         {
@@ -342,7 +343,7 @@ void readOFF(istream & instr,
     
     int numVertices, numFaces, numEdges_unused;
     instr >> numVertices >> numFaces >> numEdges_unused;
-    cerr << "Reading " << numVertices << " vertices and " << numFaces << " faces.\n";
+//    cerr << "Reading " << numVertices << " vertices and " << numFaces << " faces.\n";
     
     outVertices = vector<Point_3>(numVertices);
     outFaces = vector<vector<unsigned int> >(numFaces);
