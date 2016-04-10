@@ -11,6 +11,7 @@
 
 #include <CGAL/box_intersection_d.h>
 #include <CGAL/intersections.h>
+#include <CGAL/Bbox_3.h>
 //#include <CGAL/squared_distance_3.h>
 
 #include "PointFacetDistance-inl.h"
