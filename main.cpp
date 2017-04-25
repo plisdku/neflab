@@ -24,6 +24,7 @@ typedef CGAL::Polyhedron_3<Traits> Polyhedron;
 #include "InteriorVolumes-inl.h"
 #include "Boolean-inl.h"
 #include "PaternityTest-inl.h"
+#include "FacetIntersectionTest-inl.h"
 
 using namespace std;
 
@@ -62,11 +63,27 @@ vector<vector<unsigned int> > findIntersectingFacets(
 int handleBooleans(int argc, char const** argv);
 
 /**
+ * Main function for tests
+ */
+int handleTests(int argc, char const** argv);
+
+/**
  * Main function for facet inheritance (the only operation offered here that
  * doesn't use Nef polyhedra).
  */
 int handleFacetInheritance(int argc, char const** argv);
 
+/**
+ * Main function for printing things.
+ */
+int handlePrint(int argc, char const** argv);
+
+void readInputPolyhedra(int argc, char const **argv, NefPolyhedron & p1, NefPolyhedron & p2);
+void readInputPolyhedra(int argc, char const **argv,
+    vector<Point_3> & vertices1,
+    vector<vector<unsigned int> > & faces1,
+    vector<Point_3> & vertices2,
+    vector<vector<unsigned int> > & faces2);
 /**
  * Load a Nef polyhedron from a single file specifying all its shells as
  * separate OFF files.  A brief header gives the number of shells, and the
@@ -103,6 +120,14 @@ int main(int argc, char const** argv)
     {
         returnVal = handleFacetInheritance(argc, argv);
     }
+    else if (algorithmName == "print")
+    {
+        returnVal = handlePrint(argc, argv);
+    }
+    else if (algorithmName == "testBoundaryIntersection")
+    {
+        returnVal = handleTests(argc, argv);
+    }
     else
     {
         returnVal = handleBooleans(argc, argv);
@@ -120,27 +145,7 @@ int handleBooleans(int argc, char const **argv)
     // ------ Read two polyhedra, either from a file or from standard input
     
     NefPolyhedron p1, p2;
-    if (argc == 3)
-    {
-        string fname(argv[2]);
-        cerr << "Opening " << fname << "\n";
-        
-        ifstream in(fname.c_str());
-        
-        if (!in)
-        {
-            cerr << "Cannot open file.\n";
-            return 1;
-        }
-
-        p1 = readMultiOFF(in);
-        p2 = readMultiOFF(in);
-    }
-    else
-    {
-        p1 = readMultiOFF(cin);
-        p2 = readMultiOFF(cin);
-    }
+    readInputPolyhedra(argc, argv, p1, p2);
     
     // ------ Go do the calculation
     
@@ -169,6 +174,35 @@ int handleBooleans(int argc, char const **argv)
 }
 
 
+int handleTests(int argc, char const** argv)
+{
+    string algorithmName(argv[1]);
+    if (algorithmName != "testBoundaryIntersection")
+    {
+        throw std::runtime_error("Algorithm must be testBoundaryIntersection");
+    }
+    
+//    NefPolyhedron p1, p2;
+//    readInputPolyhedra(argc, argv, p1, p2);
+//    
+//    NefPolyhedron b1, b2;
+//    b1 = p1.boundary();
+//    b2 = p2.boundary();
+
+    
+    // Vertices and faces of the two polyhedra
+    vector<Point_3> vertices1, vertices2;
+    vector<vector<unsigned int> > faces1, faces2;
+    
+    readInputPolyhedra(argc, argv, vertices1, faces1, vertices2, faces2);
+    
+    int numIntersections = FacetIntersectionTest::numIntersections(vertices1, faces1, vertices2, faces2);
+    
+    std::cout << numIntersections << "\n";
+    
+    return 0;
+}
+
 
 int handleFacetInheritance(int argc, char const **argv)
 {
@@ -180,6 +214,42 @@ int handleFacetInheritance(int argc, char const **argv)
     
     // Indices into polyhedron 1, for each face of polyhedron 2
     vector<vector<unsigned int> > ancestorFaces;
+    
+    // For the facet inheritance algorithm, I just want to deal with
+    // collections of facets.  NefPolyhedron will actually make this job
+    // impossible because it automatically merges coplanar input facets.
+    
+    readInputPolyhedra(argc, argv, vertices1, faces1, vertices2, faces2);
+    
+//    std::cerr << "From " << vertices1.size() << " verts and "
+//        << faces1.size() << " faces to "
+//        << vertices2.size() << " verts and "
+//        << faces2.size() << " faces.\n";
+    ancestorFaces = facetInheritance(vertices1, faces1, vertices2, faces2);
+    
+    for (int aa = 0; aa < ancestorFaces.size(); aa++)
+    {
+        std::cout << aa << ":\t";
+//        std::cerr << "New face " << aa << " paternity: [ ";
+        for (int bb = 0; bb < ancestorFaces[aa].size(); bb++)
+        {
+//            std::cerr << ancestorFaces[aa][bb] << " ";
+            std::cout << ancestorFaces[aa][bb] << " ";
+        }
+//        std::cerr << "]\n";
+        std::cout << "\n";
+    }
+    
+    return 0;
+}
+
+int handlePrint(int argc, char const **argv)
+{
+    // ------ Read two polyhedra, either from a file or from standard input
+    
+    // Vertices and faces of the two polyhedra
+    vector<Point_3> vertices1, vertices2;
+    vector<vector<unsigned int> > faces1, faces2;
     
     // For the facet inheritance algorithm, I just want to deal with
     // collections of facets.  NefPolyhedron will actually make this job
@@ -206,25 +276,11 @@ int handleFacetInheritance(int argc, char const **argv)
         readPolyhedron(cin, vertices2, faces2);
     }
     
-//    std::cerr << "From " << vertices1.size() << " verts and "
-//        << faces1.size() << " faces to "
-//        << vertices2.size() << " verts and "
-//        << faces2.size() << " faces.\n";
-    ancestorFaces = facetInheritance(vertices1, faces1, vertices2, faces2);
-    
-    for (int aa = 0; aa < ancestorFaces.size(); aa++)
-    {
-        std::cout << aa << ":\t";
-//        std::cerr << "New face " << aa << " paternity: [ ";
-        for (int bb = 0; bb < ancestorFaces[aa].size(); bb++)
-        {
-//            std::cerr << ancestorFaces[aa][bb] << " ";
-            std::cout << ancestorFaces[aa][bb] << " ";
-        }
-//        std::cerr << "]\n";
-        std::cout << "\n";
-    }
-    
+    std::cout << "Polyhedron 1: " << vertices1.size()
+        << " vertices and " << faces1.size() << " faces.\n";
+    std::cout << "Polyhedron 2: " << vertices2.size()
+        << " vertices and " << faces2.size() << " faces.\n";
+        
     return 0;
 }
 
@@ -235,12 +291,67 @@ void printHelp()
     cout << "\tNefLab intersection\n";
     cout << "\tNefLab union\n";
     cout << "\tNefLab difference\n";
+    cout << "\tNeflab print\n";
+    cout << "\tNeflab testBoundaryIntersection\n";
 }
 
 void printError()
 {
     cout << "I don't understand what you want.\n";
     printHelp();
+}
+
+
+void readInputPolyhedra(int argc, char const **argv, NefPolyhedron & p1, NefPolyhedron & p2)
+{
+    if (argc == 3)
+    {
+        string fname(argv[2]);
+        cerr << "Opening " << fname << "\n";
+        
+        ifstream in(fname.c_str());
+        
+        if (!in)
+        {
+            throw std::runtime_error("Cannot open file.\n");
+        }
+
+        p1 = readMultiOFF(in);
+        p2 = readMultiOFF(in);
+    }
+    else
+    {
+        p1 = readMultiOFF(cin);
+        p2 = readMultiOFF(cin);
+    }
+}
+
+void readInputPolyhedra(int argc, char const **argv,
+    vector<Point_3> & vertices1,
+    vector<vector<unsigned int> > & faces1,
+    vector<Point_3> & vertices2,
+    vector<vector<unsigned int> > & faces2)
+{
+    if (argc == 3)
+    {
+        string fname(argv[2]);
+        cerr << "Opening " << fname << "\n";
+        
+        ifstream in(fname.c_str());
+        
+        if (!in)
+        {
+            throw std::runtime_error("Cannot open file.");
+        }
+        
+        readPolyhedron(in, vertices1, faces1);
+        readPolyhedron(in, vertices2, faces2);
+    }
+    else
+    {
+        readPolyhedron(cin, vertices1, faces1);
+        readPolyhedron(cin, vertices2, faces2);
+    }
 }
 
 NefPolyhedron readMultiOFF(istream & instr)

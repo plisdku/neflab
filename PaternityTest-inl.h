@@ -78,6 +78,33 @@ struct CallbackTri3
     }
 };
 
+
+/**
+ * Return a weighted average of p0, p1, and p2.
+ */
+static inline Kernel::Point_2 sInset(const Kernel::Point_2 & p0,
+    const Kernel::Point_2 & p1,
+    const Kernel::Point_2 & p2)
+{
+    const Kernel::FT a = 1.0 - 1e-7;
+    const Kernel::FT b = 0.5*(1.0 - a);
+    
+    return Kernel::Point_2(a*p0[0] + b*p1[0] + b*p2[0],
+        a*p0[1] + b*p1[1] + b*p2[1]);
+}
+
+/**
+ * Return a slightly inset version of the triangle.
+ */
+static inline CGAL::Triangle_2<Kernel> sInsetTri(const std::vector<Kernel::Point_2> & pts)
+{
+    return CGAL::Triangle_2<Kernel>(
+        sInset(pts[0], pts[1], pts[2]),
+        sInset(pts[1], pts[2], pts[0]),
+        sInset(pts[2], pts[0], pts[1]));
+}
+
+
 int paternityTest(const std::vector<Point_3> & vOld,
     const std::vector<unsigned int> & fOld,
     const std::vector<Point_3> & vNew,
@@ -131,8 +158,19 @@ int paternityTest(const std::vector<Point_3> & vOld,
                 newFace[ii] = oldPlane.to_2d(vNew[fNew[ii]]);
             }
             
-            CGAL::Triangle_2<Kernel> tri1(oldFace[0], oldFace[1], oldFace[2]);
+            // Shrink the new face by a tiny fraction to exclude very very
+            // small intersections.  This is NOT a CGAL-style way to do this!
+            // But in practice my input geometry frequently has triangles that
+            // should only share an edge being marked as intersecting.  I
+            // think CGAL's do_intersect looks for intersection in the interior,
+            // not on the edge, so it's an issue of having floating-point
+            // coordinates passed in I guess.
+            
+            CGAL::Triangle_2<Kernel> tri1 = sInsetTri(oldFace);
             CGAL::Triangle_2<Kernel> tri2(newFace[0], newFace[1], newFace[2]);
+            
+//            CGAL::Triangle_2<Kernel> tri1(oldFace[0], oldFace[1], oldFace[2]);
+//            CGAL::Triangle_2<Kernel> tri2(newFace[0], newFace[1], newFace[2]);
             
             if (CGAL::do_intersect(tri1, tri2))
             {

@@ -199,6 +199,9 @@ namespace Local
         typename NefPolyhedron::Point_3 mAnyPoint;
     };
     
+    /**
+     * Representation of a volume of the Nef polyhedron with
+     */
     template<class NefPolyhedron>
     class NestedVolume
     {
@@ -212,34 +215,23 @@ namespace Local
             mParentVolume(0L)
         {
             // 1. Find outermost shell and its signed volume
-            // 
-            // old approach: assume first shell is outermost.  (Wrong!  Sigh.)
             
-//            ShellBoundsCalculator<NefPolyhedron> visitor;
-//            poly.visit_shell_objects(
-//                typename NefPolyhedron::SFace_const_handle(vol->shells_begin()),
-//                visitor);
-//            mBoundingBox = visitor.boundingBox();
-//            mAnyPoint = visitor.anyPoint();
-            
-            // Debug step: iterate over all shells...
+            // Iterate over all shells...
             typename NefPolyhedron::Shell_entry_const_iterator itr;
             for (itr = vol->shells_begin(); itr != vol->shells_end(); itr++)
             {
-                ShellBoundsCalculator<NefPolyhedron> vis;
-                poly.visit_shell_objects(itr, vis);
+                ShellBoundsCalculator<NefPolyhedron> shellBoundsCalculator;
+                poly.visit_shell_objects(itr, shellBoundsCalculator);
                 
-//                std::cout << "\tshell bounds " << vis.boundingBox() << "\n";                
-                
-                if (Local::encloses(vis.boundingBox(), mBoundingBox))
+                if (Local::encloses(shellBoundsCalculator.boundingBox(), mBoundingBox))
                 {
                     mOuterShell = itr;
 //                    std::cout << "\t(this is now outer shell)\n";
                 }
                 
 
-                mBoundingBox = mBoundingBox + vis.boundingBox();
-                mAnyPoint = vis.anyPoint();
+                mBoundingBox = mBoundingBox + shellBoundsCalculator.boundingBox();
+                mAnyPoint = shellBoundsCalculator.anyPoint();
             }
             
 //            std::cout << "* Bounding box is " << mBoundingBox << "\n";
@@ -258,9 +250,12 @@ namespace Local
             return mAnyPoint;
         }
         
-        // assume that we've discarded the outermost volume already.
         bool isInterior() const
         {
+            // assume that we've discarded the outermost volume already.
+            // therefore there is no parent volume for the outermost inner
+            // volumes.
+        
             if (mParentVolume == 0L)
                 return true;
             else
@@ -275,15 +270,28 @@ namespace Local
         }
         void parent(NestedVolume<NefPolyhedron>* p) { mParentVolume = p; }
         
+        /**
+         * Check whether this volume encloses another volume.
+         * We're assuming they are both nested volumes of the same poly so
+         * they are non-intersecting.
+         */
         bool encloses(const NestedVolume<NefPolyhedron> & p) const
         {
+            if (mPolyhedron != p.mPolyhedron)
+            {
+                throw std::runtime_error("Cannot test enclosure of volumes from different polyhedra");
+            }
+            
             // little bit of fast culling.
             if (!Local::interiorEncloses(boundingBox(), p.boundingBox()))
                 return false;
             
             return encloses(p.anyPoint());
         }
-                
+        
+        /**
+         * Check whether this volume encloses a given point.
+         */
         bool encloses(const typename NefPolyhedron::Point_3 & p) const
         {
             // 1. Find halffacet closest to p
@@ -291,19 +299,10 @@ namespace Local
             
             assert(mPolyhedron != 0L);
             
-            double minDistanceSquared = std::numeric_limits<double>::max();
-            
-            // Get outermost shell somehow!
-            // cannot assume it's the first shell (why not??)
-//            typename NefPolyhedron::Shell_entry_const_iterator outerShell =
-//                nefVolume()->shells_begin();
-            typename NefPolyhedron::Shell_entry_const_iterator outerShell =
-                mOuterShell;
-            
+            // Find the outer shell facet which is closest to the point.
+            // Then ask which side we're on.
             ClosestFacetFinder<NefPolyhedron> finder(p);
-            mPolyhedron->visit_shell_objects(
-                typename NefPolyhedron::SFace_const_handle(
-                    outerShell), finder);
+            mPolyhedron->visit_shell_objects(typename NefPolyhedron::SFace_const_handle(mOuterShell), finder);
             
             // Now check which side the point is on.
             // CAREFUL: The outer shell of a volume faces INTO the volume!
@@ -316,6 +315,11 @@ namespace Local
                 return false;
         }
     private:
+        // We have a NefPoly we're associated with.
+        // We point to a Nef volume and its outer shell.
+        // We save an arbitrary point from the volume.
+        // We cache a bounding box.
+        // We store the volume that encloses us.
         const NefPolyhedron* mPolyhedron;
         typename NefPolyhedron::Volume_const_handle mNefVolume;
         typename NefPolyhedron::Shell_entry_const_iterator mOuterShell;
@@ -353,18 +357,23 @@ interiorVolumes(const NefPolyhedron & poly)
     {
 //        std::cout << "Volume  " << volumes[ww].boundingBox()
 //            << " encloses " << volumes[vv].boundingBox() << "\n";
-         if (volumes[vv].parent() == 0L)
-             volumes[vv].parent(&volumes[ww]);
-         else if (volumes[vv].parent()->encloses(volumes[ww])) 
-             volumes[vv].parent(&volumes[ww]);
+        if (volumes[vv].parent() == 0L)
+        {
+            volumes[vv].parent(&volumes[ww]);
+        }
+        else if (volumes[vv].parent()->encloses(volumes[ww]))
+        {
+            volumes[vv].parent(&volumes[ww]);
+        }
     }
-    else
-    {
-//        std::cout << "Volume " << volumes[ww].boundingBox()
-//            << " does NOT enclose " << volumes[vv].boundingBox() << "\n";
-//        std::cout << "\tNon-enclosed point " << volumes[vv].anyPoint() << "\n";
-//        volumes[ww].encloses(volumes[vv]);
-    }
+//    else
+//    {
+//        ;
+////        std::cout << "Volume " << volumes[ww].boundingBox()
+////            << " does NOT enclose " << volumes[vv].boundingBox() << "\n";
+////        std::cout << "\tNon-enclosed point " << volumes[vv].anyPoint() << "\n";
+////        volumes[ww].encloses(volumes[vv]);
+//    }
     
     std::vector<typename NefPolyhedron::Volume_const_handle> out;
     for (int vv = 0; vv < volumes.size(); vv++)

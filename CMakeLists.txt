@@ -37,6 +37,7 @@ add_executable( NefLab
     Boolean-inl.h
     BuildMesh-inl.h
     CGALUtilities.h
+	FacetIntersectionTest-inl.h
     InteriorVolumes-inl.h
     main.cpp
     PaternityTest-inl.h
